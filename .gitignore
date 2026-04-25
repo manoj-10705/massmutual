@@ -1,27 +1,84 @@
-# Logs
-logs
+# ============================================
+# MassMutual Financial Pipeline — .gitignore
+# ============================================
+
+# Node / Frontend
+node_modules/
+dist/
+dist-ssr/
+*.local
+package-lock.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+build/
+*.egg
+
+# Virtual environments
+.venv/
+airflow_venv/
+venv/
+env/
+
+# Airflow runtime artifacts
+airflow/airflow.db
+airflow/logs/
+airflow/airflow-webserver.pid
+airflow/standalone_admin_password.txt
+airflow/airflow.cfg
+airflow/webserver_config.py
+
+# Spark output
+*.parquet/
+spark/output/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs & debug files
 *.log
+*.txt
+!requirements.txt
+!README.txt
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
+# Archives & binaries
+*.zip
+*.tar.gz
 
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
-.DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+# Environment & secrets
+.env
 
-# Ignored for the template, you probably want to remove it:
-package-lock.json
+# Large/duplicate data files
+dataset/
+
+# Docker overrides
+docker-compose.override.yml
+
+# Test artifacts
+.pytest_cache/
+htmlcov/
+.coverage
+*.cover
+
+# Gemini / AI
+.gemini/

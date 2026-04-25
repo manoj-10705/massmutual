@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    name: Lint & Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install linters
+        run: pip install ruff black
+      - name: Run ruff
+        run: ruff check frontend/ streaming/ --ignore E501
+      - name: Check formatting
+        run: black --check --line-length 120 frontend/ streaming/
+
+  unit-test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: |
+          pip install -r frontend/requirements.txt
+          pip install pytest pytest-cov
+      - name: Run unit tests
+        run: pytest tests/unit -v --tb=short -m unit
+        env:
+          POSTGRES_HOST: localhost
+          APP_DB_NAME: test
+          APP_DB_USER: test
+          APP_DB_PASSWORD: test
+
+  data-quality:
+    name: Data Quality Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: pip install pytest
+      - name: Run data quality tests
+        run: pytest tests/data_quality -v --tb=short -m data_quality
+
+  docker-build:
+    name: Docker Build Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate compose config
+        run: docker compose config --quiet
+      - name: Build all images
+        run: docker compose build

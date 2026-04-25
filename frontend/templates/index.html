@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="MassMutual Financial Analytics Dashboard — Real-time market intelligence with AI-powered analysis for Maybank (1155.KL)">
+    <title>MassMutual | Financial Intelligence Dashboard</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='24' font-size='24'>📊</text></svg>">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+
+    <!-- CDN Libraries with SRI -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
+</head>
+<body>
+
+    <!-- =============================== -->
+    <!-- HEADER -->
+    <!-- =============================== -->
+    <header class="header glass">
+        <div class="header-left">
+            <h1 class="logo">
+                <span class="logo-icon">📊</span>
+                <span class="logo-text">MassMutual</span>
+                <span class="logo-subtitle">Financial Intelligence</span>
+            </h1>
+        </div>
+        <nav class="tab-nav" id="tabNav">
+            <button class="tab-btn active" data-tab="overview">Overview</button>
+            <button class="tab-btn" data-tab="analysis">Analysis</button>
+            <button class="tab-btn" data-tab="ai">🤖 AI Analyst</button>
+        </nav>
+        <div class="header-right">
+            <div class="live-badge" id="liveBadge">
+                <span class="live-dot"></span>
+                <span class="live-text">Connecting...</span>
+            </div>
+            <button class="cmd-palette-btn" title="Command Palette (Ctrl+K)" id="cmdPaletteBtn">⌘K</button>
+        </div>
+    </header>
+
+    <!-- =============================== -->
+    <!-- MAIN CONTENT -->
+    <!-- =============================== -->
+    <main class="main-content">
+
+        <!-- TAB: Overview -->
+        <section class="tab-panel active" id="tab-overview">
+
+            <!-- KPI Cards -->
+            <div class="kpi-grid" id="kpiGrid">
+                <div class="kpi-card glass" id="kpiAvgClose">
+                    <div class="kpi-label">Avg Close Price</div>
+                    <div class="kpi-value skeleton" id="kpiAvgCloseValue">—</div>
+                    <div class="kpi-change" id="kpiAvgCloseChange"></div>
+                </div>
+                <div class="kpi-card glass" id="kpiGdp">
+                    <div class="kpi-label">GDP (Constant 2015)</div>
+                    <div class="kpi-value skeleton" id="kpiGdpValue">—</div>
+                    <div class="kpi-change" id="kpiGdpChange"></div>
+                </div>
+                <div class="kpi-card glass" id="kpiInflation">
+                    <div class="kpi-label">Inflation Rate</div>
+                    <div class="kpi-value skeleton" id="kpiInflationValue">—</div>
+                    <div class="kpi-change" id="kpiInflationChange"></div>
+                </div>
+                <div class="kpi-card glass" id="kpiVolatility">
+                    <div class="kpi-label">Yearly Volatility</div>
+                    <div class="kpi-value skeleton" id="kpiVolatilityValue">—</div>
+                    <div class="kpi-change" id="kpiVolatilityChange"></div>
+                </div>
+                <div class="kpi-card glass kpi-ai" id="kpiAiStatus">
+                    <div class="kpi-label">🤖 AI Analyst</div>
+                    <div class="kpi-value" id="kpiAiStatusValue">Checking...</div>
+                    <div class="kpi-change" id="kpiAiStatusDetail"></div>
+                </div>
+            </div>
+
+            <!-- Charts Row 1 -->
+            <div class="chart-grid">
+                <div class="chart-card glass chart-large" id="candlestickCard">
+                    <div class="chart-header">
+                        <h2 class="chart-title">Maybank (1155.KL) — Price History</h2>
+                        <div class="chart-controls">
+                            <select id="yearFilter" class="select-control">
+                                <option value="">All Years</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="chart-body" id="candlestickChart"></div>
+                </div>
+                <div class="chart-card glass chart-small" id="alertFeedCard">
+                    <div class="chart-header">
+                        <h2 class="chart-title">⚡ Alert Feed</h2>
+                    </div>
+                    <div class="alert-feed" id="alertFeed">
+                        <div class="alert-empty">
+                            <span>No anomalies detected</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Row 2 -->
+            <div class="chart-grid chart-grid-2">
+                <div class="chart-card glass">
+                    <div class="chart-header">
+                        <h2 class="chart-title">Rolling Volatility</h2>
+                    </div>
+                    <div class="chart-body">
+                        <canvas id="volatilityChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-card glass">
+                    <div class="chart-header">
+                        <h2 class="chart-title">Monthly Volume</h2>
+                    </div>
+                    <div class="chart-body">
+                        <canvas id="volumeChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB: Analysis -->
+        <section class="tab-panel" id="tab-analysis">
+            <div class="chart-grid chart-grid-2">
+                <div class="chart-card glass">
+                    <div class="chart-header">
+                        <h2 class="chart-title">Daily Returns Distribution</h2>
+                    </div>
+                    <div class="chart-body">
+                        <canvas id="returnsChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-card glass">
+                    <div class="chart-header">
+                        <h2 class="chart-title">GDP vs Stock Price</h2>
+                    </div>
+                    <div class="chart-body">
+                        <canvas id="gdpChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB: AI Analyst -->
+        <section class="tab-panel" id="tab-ai">
+            <div class="ai-panel-container">
+                <div class="ai-chat-panel glass">
+                    <div class="ai-chat-header">
+                        <div class="ai-chat-title">
+                            <span class="ai-icon">🤖</span>
+                            <span>AI Financial Analyst</span>
+                        </div>
+                        <span class="ai-powered">Powered by Gemini</span>
+                    </div>
+                    <div class="ai-chat-messages" id="aiChatMessages">
+                        <div class="ai-message ai-welcome">
+                            <div class="ai-avatar">🤖</div>
+                            <div class="ai-bubble">
+                                <p>Hi! I'm your AI financial analyst. Ask me anything about Maybank's stock data, market trends, or financial metrics.</p>
+                                <p class="ai-tip">Try: <em>"What was the most volatile month in 2023?"</em></p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="ai-suggestions" id="aiSuggestions">
+                        <button class="suggestion-chip" data-question="What was the most volatile month in 2023?">Most volatile month?</button>
+                        <button class="suggestion-chip" data-question="Show me the correlation between GDP and stock price">GDP vs stock price</button>
+                        <button class="suggestion-chip" data-question="What is the average daily return by year?">Avg returns by year</button>
+                        <button class="suggestion-chip" data-question="Which quarter had the highest trading volume?">Highest volume quarter</button>
+                    </div>
+                    <div class="ai-chat-input-area">
+                        <input type="text" class="ai-chat-input" id="aiInput" placeholder="Ask about the financial data..." maxlength="500">
+                        <button class="ai-send-btn" id="aiSendBtn" title="Send">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="ai-chart-panel glass" id="aiChartPanel" style="display:none;">
+                    <div class="chart-header">
+                        <h2 class="chart-title" id="aiChartTitle">AI Generated Chart</h2>
+                    </div>
+                    <div class="chart-body">
+                        <canvas id="aiChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- =============================== -->
+    <!-- FOOTER -->
+    <!-- =============================== -->
+    <footer class="footer glass">
+        <div class="footer-left">
+            <span class="footer-status">
+                <span class="status-dot status-ok" id="statusBatch"></span> Batch ETL
+            </span>
+            <span class="footer-status">
+                <span class="status-dot" id="statusStream"></span> Streaming
+            </span>
+            <span class="footer-status">
+                <span class="status-dot" id="statusAi"></span> AI Analyst
+            </span>
+        </div>
+        <div class="footer-right">
+            <span>MassMutual Financial Intelligence v2.0</span>
+        </div>
+    </footer>
+
+    <!-- =============================== -->
+    <!-- COMMAND PALETTE (Ctrl+K) -->
+    <!-- =============================== -->
+    <div class="cmd-palette-overlay" id="cmdPaletteOverlay" style="display:none;">
+        <div class="cmd-palette glass">
+            <input type="text" class="cmd-palette-input" id="cmdPaletteInput" placeholder="Search commands...">
+            <div class="cmd-palette-results" id="cmdPaletteResults">
+                <button class="cmd-result" data-action="tab:overview">📊 Go to Overview</button>
+                <button class="cmd-result" data-action="tab:analysis">📈 Go to Analysis</button>
+                <button class="cmd-result" data-action="tab:ai">🤖 Open AI Analyst</button>
+                <button class="cmd-result" data-action="filter:2023">📅 Filter: Year 2023</button>
+                <button class="cmd-result" data-action="filter:2024">📅 Filter: Year 2024</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/dashboard.js"></script>
+</body>
+</html>
