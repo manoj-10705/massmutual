@@ -611,14 +611,18 @@ async function sendAIQuery() {
     // Add user message
     messages.innerHTML += `
         <div class="ai-message user">
-            <div class="ai-avatar">👤</div>
+            <div class="ai-avatar">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </div>
             <div class="ai-bubble"><p>${escapeHtml(question)}</p></div>
         </div>`;
 
     // Show typing indicator
     messages.innerHTML += `
         <div class="ai-message ai-typing-msg">
-            <div class="ai-avatar">🤖</div>
+            <div class="ai-avatar">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" y1="16" x2="8" y2="16"/><line x1="16" y1="16" x2="16" y2="16"/></svg>
+            </div>
             <div class="ai-bubble">
                 <div class="ai-typing"><span></span><span></span><span></span></div>
             </div>
@@ -640,19 +644,18 @@ async function sendAIQuery() {
         const typingMsg = messages.querySelector('.ai-typing-msg');
         if (typingMsg) typingMsg.remove();
 
-        let sqlBlock = '';
-        if (json.sql) {
-            sqlBlock = `<pre><code>${escapeHtml(json.sql)}</code></pre>`;
-        }
+        // Optional: you can log the SQL to console if needed for debugging
+        if (json.sql) console.debug('AI Executed SQL:', json.sql);
 
         const latency = json.latency_ms ? `<span style="color:#64748b;font-size:0.7rem">(${json.latency_ms}ms)</span>` : '';
 
         messages.innerHTML += `
             <div class="ai-message">
-                <div class="ai-avatar">🤖</div>
+                <div class="ai-avatar">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" y1="16" x2="8" y2="16"/><line x1="16" y1="16" x2="16" y2="16"/></svg>
+                </div>
                 <div class="ai-bubble">
                     <p>${formatAnalysis(json.analysis || json.message || 'No response')}</p>
-                    ${sqlBlock}
                     ${latency}
                 </div>
             </div>`;
@@ -666,7 +669,9 @@ async function sendAIQuery() {
 
         messages.innerHTML += `
             <div class="ai-message">
-                <div class="ai-avatar">🤖</div>
+                <div class="ai-avatar">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" y1="16" x2="8" y2="16"/><line x1="16" y1="16" x2="16" y2="16"/></svg>
+                </div>
                 <div class="ai-bubble" style="border-color:rgba(239,68,68,0.3)">
                     <p>Sorry, I encountered an error: ${escapeHtml(err.message)}</p>
                 </div>

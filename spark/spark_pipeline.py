@@ -59,7 +59,7 @@ CSV_SCHEMA = StructType([
     StructField("Low", DoubleType(), True),
     StructField("Close", DoubleType(), True),
     StructField("Adj Close", DoubleType(), True),
-    StructField("Volume", LongType(), True),
+    StructField("Volume", DoubleType(), True),
     StructField("GDP (constant 2015 MYR)", DoubleType(), True),
     StructField("GDP Growth YOY (%)", DoubleType(), True),
     StructField("Inflation Rate (%)", DoubleType(), True),

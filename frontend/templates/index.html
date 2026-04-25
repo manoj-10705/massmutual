@@ -5,11 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="MassMutual Financial Analytics Dashboard — Real-time market intelligence with AI-powered analysis for Maybank (1155.KL)">
     <title>MassMutual | Financial Intelligence Dashboard</title>
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='24' font-size='24'>📊</text></svg>">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%2310b981'/><text x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='16' font-weight='bold' fill='black'>MM</text></svg>">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/style.css?v=2.1">
 
     <!-- CDN Libraries with SRI -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1" crossorigin="anonymous"></script>
@@ -24,7 +24,7 @@
     <header class="header glass">
         <div class="header-left">
             <h1 class="logo">
-                <span class="logo-icon">📊</span>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="logo-icon" style="color: var(--accent-green)"><path d="M3 3v18h18"/><path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/></svg>
                 <span class="logo-text">MassMutual</span>
                 <span class="logo-subtitle">Financial Intelligence</span>
             </h1>
@@ -32,7 +32,7 @@
         <nav class="tab-nav" id="tabNav">
             <button class="tab-btn active" data-tab="overview">Overview</button>
             <button class="tab-btn" data-tab="analysis">Analysis</button>
-            <button class="tab-btn" data-tab="ai">🤖 AI Analyst</button>
+            <button class="tab-btn" data-tab="ai">AI Analyst</button>
         </nav>
         <div class="header-right">
             <div class="live-badge" id="liveBadge">
@@ -74,7 +74,7 @@
                     <div class="kpi-change" id="kpiVolatilityChange"></div>
                 </div>
                 <div class="kpi-card glass kpi-ai" id="kpiAiStatus">
-                    <div class="kpi-label">🤖 AI Analyst</div>
+                    <div class="kpi-label">AI Analyst</div>
                     <div class="kpi-value" id="kpiAiStatusValue">Checking...</div>
                     <div class="kpi-change" id="kpiAiStatusDetail"></div>
                 </div>
@@ -95,7 +95,7 @@
                 </div>
                 <div class="chart-card glass chart-small" id="alertFeedCard">
                     <div class="chart-header">
-                        <h2 class="chart-title">⚡ Alert Feed</h2>
+                        <h2 class="chart-title">Alert Feed</h2>
                     </div>
                     <div class="alert-feed" id="alertFeed">
                         <div class="alert-empty">
@@ -154,14 +154,16 @@
                 <div class="ai-chat-panel glass">
                     <div class="ai-chat-header">
                         <div class="ai-chat-title">
-                            <span class="ai-icon">🤖</span>
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ai-icon"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" y1="16" x2="8" y2="16"/><line x1="16" y1="16" x2="16" y2="16"/></svg>
                             <span>AI Financial Analyst</span>
                         </div>
                         <span class="ai-powered">Powered by Gemini</span>
                     </div>
                     <div class="ai-chat-messages" id="aiChatMessages">
                         <div class="ai-message ai-welcome">
-                            <div class="ai-avatar">🤖</div>
+                            <div class="ai-avatar">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" y1="16" x2="8" y2="16"/><line x1="16" y1="16" x2="16" y2="16"/></svg>
+                            </div>
                             <div class="ai-bubble">
                                 <p>Hi! I'm your AI financial analyst. Ask me anything about Maybank's stock data, market trends, or financial metrics.</p>
                                 <p class="ai-tip">Try: <em>"What was the most volatile month in 2023?"</em></p>
@@ -220,11 +222,11 @@
         <div class="cmd-palette glass">
             <input type="text" class="cmd-palette-input" id="cmdPaletteInput" placeholder="Search commands...">
             <div class="cmd-palette-results" id="cmdPaletteResults">
-                <button class="cmd-result" data-action="tab:overview">📊 Go to Overview</button>
-                <button class="cmd-result" data-action="tab:analysis">📈 Go to Analysis</button>
-                <button class="cmd-result" data-action="tab:ai">🤖 Open AI Analyst</button>
-                <button class="cmd-result" data-action="filter:2023">📅 Filter: Year 2023</button>
-                <button class="cmd-result" data-action="filter:2024">📅 Filter: Year 2024</button>
+                <button class="cmd-result" data-action="tab:overview">Go to Overview</button>
+                <button class="cmd-result" data-action="tab:analysis">Go to Analysis</button>
+                <button class="cmd-result" data-action="tab:ai">Open AI Analyst</button>
+                <button class="cmd-result" data-action="filter:2023">Filter: Year 2023</button>
+                <button class="cmd-result" data-action="filter:2024">Filter: Year 2024</button>
             </div>
         </div>
     </div>
