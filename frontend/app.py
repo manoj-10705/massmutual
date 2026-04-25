@@ -260,26 +260,23 @@ def api_daily():
     """Daily OHLCV price data. Optional ?year=YYYY filter."""
     try:
         year_filter = request.args.get("year", None)
+        ticker_filter = request.args.get("ticker", "1155.KL")
 
         with get_db() as conn:
             with conn.cursor() as cur:
+                query = """
+                    SELECT date, open, high, low, close,
+                           volume, daily_return, gdp, inflation
+                    FROM v_market_data
+                    WHERE ticker = %s
+                """
+                params = [ticker_filter]
                 if year_filter:
-                    cur.execute("""
-                        SELECT d.date, f.open, f.high, f.low, f.close,
-                               f.volume, f.daily_return, f.gdp, f.inflation
-                        FROM fact_daily_prices f
-                        JOIN dim_date d ON f.date_key = d.date_key
-                        WHERE d.year = %s
-                        ORDER BY d.date
-                    """, (int(year_filter),))
-                else:
-                    cur.execute("""
-                        SELECT d.date, f.open, f.high, f.low, f.close,
-                               f.volume, f.daily_return, f.gdp, f.inflation
-                        FROM fact_daily_prices f
-                        JOIN dim_date d ON f.date_key = d.date_key
-                        ORDER BY d.date
-                    """)
+                    query += " AND EXTRACT(YEAR FROM date) = %s"
+                    params.append(int(year_filter))
+                
+                query += " ORDER BY date"
+                cur.execute(query, params)
                 rows = cur.fetchall()
 
         data = [{
@@ -306,14 +303,24 @@ def api_daily():
 def api_volatility():
     """Rolling volatility data."""
     try:
+        year_filter = request.args.get("year", None)
+        ticker_filter = request.args.get("ticker", "1155.KL")
+
         with get_db() as conn:
             with conn.cursor() as cur:
-                cur.execute("""
+                query = """
                     SELECT d.date, v.rolling_7d_vol, v.rolling_30d_vol
                     FROM fact_volatility_index v
                     JOIN dim_date d ON v.date_key = d.date_key
-                    ORDER BY d.date
-                """)
+                    JOIN dim_stock s ON v.stock_id = s.stock_id
+                    WHERE s.ticker = %s
+                """
+                params = [ticker_filter]
+                if year_filter:
+                    query += " AND d.year = %s"
+                    params.append(int(year_filter))
+                query += " ORDER BY d.date"
+                cur.execute(query, params)
                 rows = cur.fetchall()
 
         data = [{
@@ -334,14 +341,25 @@ def api_volatility():
 def api_monthly():
     """Monthly summary data."""
     try:
+        year_filter = request.args.get("year", None)
+
         with get_db() as conn:
             with conn.cursor() as cur:
-                cur.execute("""
-                    SELECT year, month, avg_close, avg_return,
-                           total_volume, volatility
-                    FROM fact_monthly_summary
-                    ORDER BY year, month
-                """)
+                if year_filter:
+                    cur.execute("""
+                        SELECT year, month, avg_close, avg_return,
+                               total_volume, volatility
+                        FROM fact_monthly_summary
+                        WHERE year = %s
+                        ORDER BY year, month
+                    """, (int(year_filter),))
+                else:
+                    cur.execute("""
+                        SELECT year, month, avg_close, avg_return,
+                               total_volume, volatility
+                        FROM fact_monthly_summary
+                        ORDER BY year, month
+                    """)
                 rows = cur.fetchall()
 
         data = [{
@@ -445,15 +463,23 @@ def ai_query():
 def api_anomalies():
     """Recent anomaly alerts."""
     try:
+        year_filter = request.args.get("year", None)
+        ticker_filter = request.args.get("ticker", "1155.KL")
+
         with get_db() as conn:
             with conn.cursor() as cur:
-                cur.execute("""
+                query = """
                     SELECT ticker, alert_type, severity, message,
                            metric_value, threshold, detected_at
                     FROM anomaly_alerts
-                    ORDER BY detected_at DESC
-                    LIMIT 20
-                """)
+                    WHERE ticker = %s
+                """
+                params = [ticker_filter]
+                if year_filter:
+                    query += " AND EXTRACT(YEAR FROM detected_at) = %s"
+                    params.append(int(year_filter))
+                query += " ORDER BY detected_at DESC LIMIT 100"
+                cur.execute(query, params)
                 rows = cur.fetchall()
 
         data = [{
@@ -493,19 +519,23 @@ def price_publisher() -> None:
         return
 
     last_prices: dict[str, str] = {}
-    while True:
+    
+    # Use PubSub for instantaneous updates instead of polling
+    pubsub = r.pubsub()
+    pubsub.subscribe("price_updates")
+    
+    logger.info("Price publisher started (Redis PubSub mode)")
+    
+    for message in pubsub.listen():
         try:
-            for ticker in tickers:
-                ticker = ticker.strip()
-                price_data = r.hgetall(f"price:{ticker}")
-                if price_data:
-                    current = price_data.get("price", "")
-                    if current != last_prices.get(ticker):
-                        last_prices[ticker] = current
-                        socketio.emit("price_update", price_data)
+            if message["type"] == "message":
+                data = json.loads(message["data"])
+                # The data from Spark is already a dict
+                ticker = data.get("ticker")
+                if ticker in tickers:
+                    socketio.emit("price_update", data)
         except Exception as e:
             logger.warning(f"Price publisher error: {e}")
-        time.sleep(5)
 
 
 # ============================================

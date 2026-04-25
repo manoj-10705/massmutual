@@ -115,7 +115,7 @@ class MarketProducer:
                         "source": "finnhub",
                     }
                     self._publish(record)
-                    logger.debug(f"Published: {record['ticker']} @ {record['price']}")
+                    logger.info(f"Published: {record['ticker']} @ {record['price']}")
         except Exception as e:
             logger.error(f"Error processing message: {e}")
 

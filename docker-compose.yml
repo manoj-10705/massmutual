@@ -101,6 +101,35 @@ services:
     restart: unless-stopped
 
   # ============================================
+  # Stream Consumer — Kafka to PG/Redis
+  # ============================================
+  stream-consumer:
+    build: ./frontend
+    container_name: mm_stream_consumer
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./streaming:/app/streaming
+    environment:
+      - KAFKA_BROKER=kafka:9092
+      - REDIS_HOST=redis
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-massmutual_redis}
+      - POSTGRES_HOST=postgres
+      - APP_DB_NAME=${APP_DB_NAME:-massmutual}
+      - APP_DB_USER=${APP_DB_USER:-massmutual}
+      - APP_DB_PASSWORD=${APP_DB_PASSWORD:-massmutual123}
+    command: python streaming/python_consumer.py
+    networks:
+      - data-plane
+      - front-plane
+    restart: unless-stopped
+
+  # ============================================
   # Kafka (KRaft Mode — No Zookeeper)
   # ============================================
   kafka:
@@ -147,6 +176,16 @@ services:
       - SPARK_MASTER_PORT=7077
       - SPARK_MASTER_WEBUI_PORT=8081
       - SPARK_MASTER_OPTS=-Dspark.master.rest.enabled=true
+      - POSTGRES_HOST=postgres
+      - APP_DB_NAME=${APP_DB_NAME:-massmutual}
+      - APP_DB_USER=${APP_DB_USER:-massmutual}
+      - APP_DB_PASSWORD=${APP_DB_PASSWORD:-massmutual123}
+      - KAFKA_BROKER=kafka:9092
+      - KAFKA_TOPIC=${KAFKA_TOPIC:-market-data}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-massmutual_redis}
+      - CHECKPOINT_DIR=/app/checkpoints
     ports:
       - "8081:8081"
       - "7077:7077"

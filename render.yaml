@@ -1,0 +1,54 @@
+# MassMutual — Render.com Deployment
+
+databases:
+  - name: massmutual-db
+    plan: free
+    databaseName: massmutual
+    user: massmutual
+
+services:
+  - type: web
+    name: massmutual-dashboard
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements-render.txt
+    startCommand: gunicorn --bind 0.0.0.0:$PORT --worker-class eventlet -w 1 frontend.app:app
+    envVars:
+      - key: POSTGRES_HOST
+        fromDatabase:
+          name: massmutual-db
+          property: host
+      - key: APP_DB_NAME
+        fromDatabase:
+          name: massmutual-db
+          property: database
+      - key: APP_DB_USER
+        fromDatabase:
+          name: massmutual-db
+          property: user
+      - key: APP_DB_PASSWORD
+        fromDatabase:
+          name: massmutual-db
+          property: password
+      - key: DATABASE_URL
+        fromDatabase:
+          name: massmutual-db
+          property: connectionString
+      - key: REDIS_HOST
+        sync: false  # Set to Upstash Redis URL
+      - key: REDIS_PORT
+        value: "6379"
+      - key: REDIS_PASSWORD
+        sync: false  # Set to Upstash Redis password
+      - key: KAFKA_BROKER
+        sync: false  # Set to Upstash Kafka broker
+      - key: KAFKA_TOPIC
+        value: market-data
+      - key: FINNHUB_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: TICKERS
+        value: "1155.KL,BINANCE:BTCUSDT"
+      - key: PYTHON_VERSION
+        value: "3.12.0"

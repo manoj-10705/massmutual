@@ -138,8 +138,8 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "massmutual" <<-EOS
         alert_type    VARCHAR(50) NOT NULL,
         severity      VARCHAR(10) NOT NULL CHECK (severity IN ('critical', 'warning', 'info')),
         message       TEXT,
-        metric_value  NUMERIC(12,4),
-        threshold     NUMERIC(12,4),
+        metric_value  NUMERIC(20,4),
+        threshold     NUMERIC(20,4),
         detected_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 

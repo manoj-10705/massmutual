@@ -1,0 +1,52 @@
+name: Market Data Pipeline
+
+on:
+  schedule:
+    # Every 30 minutes during market hours (UTC: Mon-Fri 01:00-09:00 = MY 09:00-17:00)
+    - cron: '*/30 1-9 * * 1-5'
+    # Bitcoin: every 2 hours, 24/7
+    - cron: '0 */2 * * *'
+  workflow_dispatch:  # Manual trigger
+
+env:
+  DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+  UPSTASH_KAFKA_BROKER: ${{ secrets.UPSTASH_KAFKA_BROKER }}
+  UPSTASH_KAFKA_USER: ${{ secrets.UPSTASH_KAFKA_USER }}
+  UPSTASH_KAFKA_PASS: ${{ secrets.UPSTASH_KAFKA_PASS }}
+  UPSTASH_REDIS_URL: ${{ secrets.UPSTASH_REDIS_URL }}
+  UPSTASH_REDIS_TOKEN: ${{ secrets.UPSTASH_REDIS_TOKEN }}
+
+jobs:
+  collect-market-data:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install requests psycopg2-binary redis kafka-python-ng
+
+      - name: Fetch and store market data
+        run: python scripts/collect_market_data.py
+
+  compute-analytics:
+    runs-on: ubuntu-latest
+    needs: collect-market-data
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install psycopg2-binary
+
+      - name: Compute volatility and anomalies
+        run: python scripts/compute_analytics.py

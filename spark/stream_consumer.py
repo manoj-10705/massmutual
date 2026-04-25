@@ -141,12 +141,11 @@ def main() -> None:
 
     kafka_broker = require_env("KAFKA_BROKER", "kafka:9092")
     kafka_topic = require_env("KAFKA_TOPIC", "market-data")
-    checkpoint_dir = require_env("CHECKPOINT_DIR", "/app/checkpoints/stream-consumer")
+    checkpoint_dir = os.getenv("CHECKPOINT_DIR", "/tmp/stream-checkpoints")
 
     spark = (
         SparkSession.builder
         .appName("MassMutual_StreamConsumer")
-        .config("spark.jars", "/opt/spark/jars/postgresql-42.7.3.jar")
         .getOrCreate()
     )
 

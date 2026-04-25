@@ -48,6 +48,12 @@ FACT TABLES:
 - real_time_prices (id PK, ticker VARCHAR, timestamp TIMESTAMP, open NUMERIC, high NUMERIC, low NUMERIC, close NUMERIC, volume BIGINT, created_at TIMESTAMP)
   → Streaming prices from Kafka pipeline
 
+UNIFIED VIEWS:
+- v_market_data (ticker VARCHAR, date DATE, open NUMERIC, high NUMERIC, low NUMERIC, close NUMERIC, volume BIGINT, daily_return NUMERIC, gdp NUMERIC, inflation NUMERIC)
+  → This is the RECOMMENDED table for any general market data queries.
+  → It automatically combines historical data (from fact_daily_prices) and today's live data (aggregated from real_time_prices).
+  → Use this for price trends, OHLC lookups, and historical analysis that includes today.
+
 IMPORTANT RULES:
 - Always JOIN fact_daily_prices with dim_date using date_key to get actual dates
 - stock_id = 1 is Maybank (1155.KL)

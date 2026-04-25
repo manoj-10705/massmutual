@@ -86,6 +86,12 @@
                     <div class="chart-header">
                         <h2 class="chart-title">Maybank (1155.KL) — Price History</h2>
                         <div class="chart-controls">
+                            <span class="control-label">Live Mode:</span>
+                            <select id="tickerSelector" class="select-control highlight">
+                                <option value="1155.KL">Maybank (1155.KL)</option>
+                                <option value="BINANCE:BTCUSDT">Bitcoin (BTC/USDT)</option>
+                            </select>
+                            <span class="control-label">Year:</span>
                             <select id="yearFilter" class="select-control">
                                 <option value="">All Years</option>
                             </select>
@@ -111,9 +117,7 @@
                     <div class="chart-header">
                         <h2 class="chart-title">Rolling Volatility</h2>
                     </div>
-                    <div class="chart-body">
-                        <canvas id="volatilityChart"></canvas>
-                    </div>
+                    <div class="chart-body" id="volatilityChart"></div>
                 </div>
                 <div class="chart-card glass">
                     <div class="chart-header">
@@ -128,20 +132,20 @@
 
         <!-- TAB: Analysis -->
         <section class="tab-panel" id="tab-analysis">
-            <div class="chart-grid chart-grid-2">
-                <div class="chart-card glass">
+            <div class="analysis-grid">
+                <div class="chart-card glass scroll-container">
                     <div class="chart-header">
-                        <h2 class="chart-title">Daily Returns Distribution</h2>
+                        <h2 class="chart-title">Returns Distribution</h2>
                     </div>
-                    <div class="chart-body">
+                    <div class="chart-body" style="min-width: 800px;">
                         <canvas id="returnsChart"></canvas>
                     </div>
                 </div>
-                <div class="chart-card glass">
+                <div class="chart-card glass scroll-container">
                     <div class="chart-header">
-                        <h2 class="chart-title">GDP vs Stock Price</h2>
+                        <h2 class="chart-title">GDP vs Close Price</h2>
                     </div>
-                    <div class="chart-body">
+                    <div class="chart-body" style="min-width: 800px;">
                         <canvas id="gdpChart"></canvas>
                     </div>
                 </div>

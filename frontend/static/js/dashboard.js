@@ -26,6 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
     checkAIStatus();
     initWebSocket();
     initAIChat();
+    initTickerSelector();
 
     // Refresh alerts every 60s
     setInterval(loadAlerts, 60000);
@@ -133,36 +134,17 @@ async function loadKPIs() {
             opt.textContent = y;
             filter.appendChild(opt);
         });
-        filter.addEventListener('change', () => loadDailyData(filter.value));
+        filter.addEventListener('change', () => {
+            const selectedYear = filter.value;
+            loadDailyData(selectedYear, currentTicker);
+            loadVolatilityData(selectedYear, currentTicker);
+            loadMonthlyData(selectedYear); // Monthly is global/aggregate for now
+            loadAlerts(selectedYear, currentTicker);
+            updateKPIs(selectedYear, years);
+        });
 
-        // Animate KPIs
-        const kpiMap = {
-            'AVG_CLOSE': { el: 'kpiAvgCloseValue', change: 'kpiAvgCloseChange', fmt: formatCurrency },
-            'AVG_GDP': { el: 'kpiGdpValue', change: 'kpiGdpChange', fmt: formatBillions },
-            'AVG_INFLATION': { el: 'kpiInflationValue', change: 'kpiInflationChange', fmt: formatPercent },
-            'YEARLY_VOLATILITY': { el: 'kpiVolatilityValue', change: 'kpiVolatilityChange', fmt: formatNumber },
-        };
-
-        for (const [metric, cfg] of Object.entries(kpiMap)) {
-            const el = document.getElementById(cfg.el);
-            const changeEl = document.getElementById(cfg.change);
-            const val = latest[metric];
-            const prevVal = prev[metric];
-
-            if (val !== undefined && val !== null) {
-                animateValue(el, 0, val, 1200, cfg.fmt);
-
-                if (prevVal) {
-                    const pctChange = ((val - prevVal) / Math.abs(prevVal)) * 100;
-                    const arrow = pctChange >= 0 ? '↑' : '↓';
-                    changeEl.textContent = `${arrow} ${Math.abs(pctChange).toFixed(1)}% YoY`;
-                    changeEl.className = `kpi-change ${pctChange >= 0 ? 'positive' : 'negative'}`;
-                }
-            } else {
-                el.classList.remove('skeleton');
-                el.textContent = '—';
-            }
-        }
+        // Initialize KPIs with latest year
+        updateKPIs(sortedYears[0], years);
 
     } catch (err) {
         console.error('Failed to load KPIs:', err);
@@ -173,63 +155,135 @@ async function loadKPIs() {
     }
 }
 
+function updateKPIs(selectedYearStr, yearsData) {
+    const sortedYears = Object.keys(yearsData).sort((a, b) => b - a);
+    const selectedIdx = sortedYears.indexOf(selectedYearStr);
+    
+    const current = yearsData[selectedYearStr] || {};
+    // Compare to the year before the selected year (if available)
+    const prev = (selectedIdx !== -1 && selectedIdx + 1 < sortedYears.length) 
+        ? yearsData[sortedYears[selectedIdx + 1]] 
+        : {};
+
+    const kpiMap = {
+        'AVG_CLOSE': { el: 'kpiAvgCloseValue', change: 'kpiAvgCloseChange', fmt: formatCurrency },
+        'AVG_GDP': { el: 'kpiGdpValue', change: 'kpiGdpChange', fmt: formatBillions },
+        'AVG_INFLATION': { el: 'kpiInflationValue', change: 'kpiInflationChange', fmt: formatPercent },
+        'YEARLY_VOLATILITY': { el: 'kpiVolatilityValue', change: 'kpiVolatilityChange', fmt: formatNumber },
+    };
+
+    for (const [metric, cfg] of Object.entries(kpiMap)) {
+        const el = document.getElementById(cfg.el);
+        const changeEl = document.getElementById(cfg.change);
+        const val = current[metric];
+        const prevVal = prev[metric];
+
+        if (val !== undefined && val !== null) {
+            animateValue(el, 0, val, 1200, cfg.fmt);
+
+            if (prevVal) {
+                const pctChange = ((val - prevVal) / Math.abs(prevVal)) * 100;
+                const arrow = pctChange >= 0 ? '↑' : '↓';
+                changeEl.textContent = `${arrow} ${Math.abs(pctChange).toFixed(1)}% YoY`;
+                changeEl.className = `kpi-change ${pctChange >= 0 ? 'positive' : 'negative'}`;
+            } else {
+                changeEl.textContent = 'No prior data';
+                changeEl.className = 'kpi-change';
+            }
+        } else {
+            el.classList.remove('skeleton');
+            el.textContent = '—';
+            changeEl.textContent = '';
+        }
+    }
+}
+
 // ============================================
 // CANDLESTICK CHART
 // ============================================
 
+let lwChart = null;
 let candlestickSeries = null;
 let volumeSeries = null;
-let lwChart = null;
+let volatilityChart = null;
+let vol7Series = null;
+let vol30Series = null;
+let chartDataRange = { first: null, last: null };
 
-async function loadDailyData(year) {
+async function loadDailyData(year, ticker = '1155.KL') {
     try {
-        const url = year ? `/api/daily?year=${year}` : '/api/daily';
+        // Always load ALL data for the ticker (no year filter to API).
+        // Year navigation is handled client-side via setVisibleRange.
+        const url = `/api/daily?ticker=${encodeURIComponent(ticker)}`;
         const res = await fetch(url);
         const json = await res.json();
         if (json.status !== 'ok') throw new Error(json.message);
 
         const container = document.getElementById('candlestickChart');
 
-        if (lwChart) {
-            lwChart.remove();
+        if (!lwChart) {
+            lwChart = LightweightCharts.createChart(container, {
+                width: container.clientWidth,
+                height: 400,
+                layout: {
+                    background: { type: 'solid', color: 'transparent' },
+                    textColor: '#94a3b8',
+                    fontFamily: 'Inter, sans-serif',
+                },
+                grid: {
+                    vertLines: { color: 'rgba(255,255,255,0.04)' },
+                    horzLines: { color: 'rgba(255,255,255,0.04)' },
+                },
+                crosshair: {
+                    mode: LightweightCharts.CrosshairMode.Normal,
+                    vertLine: { color: 'rgba(0, 212, 170, 0.3)', style: 2 },
+                    horzLine: { color: 'rgba(0, 212, 170, 0.3)', style: 2 },
+                },
+                timeScale: {
+                    borderColor: 'rgba(255,255,255,0.08)',
+                    timeVisible: true,
+                    rightOffset: 5,
+                },
+                handleScroll: { mouseWheel: true, pressedMouseMove: true },
+                handleScale: { mouseWheel: true, pinch: true },
+            });
+
+            candlestickSeries = lwChart.addCandlestickSeries({
+                upColor: '#00d4aa',
+                downColor: '#ef4444',
+                borderDownColor: '#ef4444',
+                borderUpColor: '#00d4aa',
+                wickDownColor: '#ef4444',
+                wickUpColor: '#00d4aa',
+            });
+
+            volumeSeries = lwChart.addHistogramSeries({
+                color: '#26a69a',
+                priceFormat: { type: 'volume' },
+                priceScaleId: '',
+            });
+
+            lwChart.priceScale('').applyOptions({
+                scaleMargins: { top: 0.8, bottom: 0 },
+            });
+
+            // Resize handler
+            new ResizeObserver(entries => {
+                if (entries.length > 0) {
+                    lwChart.resize(entries[0].contentRect.width, 400);
+                }
+            }).observe(container);
+
+            // Sync volatility chart when candlestick scrolls
+            lwChart.timeScale().subscribeVisibleTimeRangeChange(range => {
+                if (volatilityChart && range) {
+                    try { volatilityChart.timeScale().setVisibleRange(range); } catch(e) {}
+                }
+            });
         }
 
-        lwChart = LightweightCharts.createChart(container, {
-            layout: {
-                background: { type: 'solid', color: 'transparent' },
-                textColor: '#94a3b8',
-                fontFamily: 'Inter, sans-serif',
-            },
-            grid: {
-                vertLines: { color: 'rgba(255,255,255,0.04)' },
-                horzLines: { color: 'rgba(255,255,255,0.04)' },
-            },
-            crosshair: {
-                mode: LightweightCharts.CrosshairMode.Normal,
-                vertLine: { color: 'rgba(0, 212, 170, 0.3)', style: 2 },
-                horzLine: { color: 'rgba(0, 212, 170, 0.3)', style: 2 },
-            },
-            rightPriceScale: { borderColor: 'rgba(255,255,255,0.08)' },
-            timeScale: {
-                borderColor: 'rgba(255,255,255,0.08)',
-                timeVisible: false,
-                secondsVisible: false,
-            },
-            handleScroll: true,
-            handleScale: true,
-        });
-
-        candlestickSeries = lwChart.addCandlestickSeries({
-            upColor: '#00d4aa',
-            downColor: '#ef4444',
-            borderDownColor: '#ef4444',
-            borderUpColor: '#00d4aa',
-            wickDownColor: '#ef4444',
-            wickUpColor: '#00d4aa',
-        });
-
         const candleData = json.data
-            .filter(d => d.date && d.open && d.high && d.low && d.close)
+            .filter(d => d.date && d.open != null && d.high != null && d.low != null && d.close != null)
             .map(d => ({
                 time: d.date,
                 open: d.open,
@@ -238,33 +292,53 @@ async function loadDailyData(year) {
                 close: d.close,
             }));
 
-        candlestickSeries.setData(candleData);
-
-        // Volume histogram
-        volumeSeries = lwChart.addHistogramSeries({
-            priceFormat: { type: 'volume' },
-            priceScaleId: 'volume',
-        });
-
-        lwChart.priceScale('volume').applyOptions({
-            scaleMargins: { top: 0.8, bottom: 0 },
-        });
-
         const volData = json.data
             .filter(d => d.date && d.volume)
             .map(d => ({
                 time: d.date,
                 value: d.volume,
-                color: (d.close >= d.open) ?
-                    'rgba(0, 212, 170, 0.3)' : 'rgba(239, 68, 68, 0.3)',
+                color: (d.close >= d.open) ? 'rgba(0, 212, 170, 0.3)' : 'rgba(239, 68, 68, 0.3)',
             }));
 
+        candlestickSeries.setData(candleData);
         volumeSeries.setData(volData);
-        lwChart.timeScale().fitContent();
 
-        // Update footer status
+        // Track actual data boundaries
+        if (candleData.length > 0) {
+            chartDataRange.first = candleData[0].time;
+            chartDataRange.last = candleData[candleData.length - 1].time;
+        }
+
+        // Navigate to selected year — but clamp to actual data boundaries
+        if (year && year !== '' && candleData.length > 0) {
+            const firstYear = parseInt(chartDataRange.first.substring(0, 4));
+            const lastYear = parseInt(chartDataRange.last.substring(0, 4));
+            const requestedYear = parseInt(year);
+
+            if (requestedYear > lastYear) {
+                // Year is beyond data — show the last available year instead
+                lwChart.timeScale().setVisibleRange({
+                    from: `${lastYear}-01-01`,
+                    to: chartDataRange.last,
+                });
+            } else if (requestedYear < firstYear) {
+                // Year is before data — show the first available year
+                lwChart.timeScale().setVisibleRange({
+                    from: chartDataRange.first,
+                    to: `${firstYear}-12-31`,
+                });
+            } else {
+                // Year is within data — show it
+                lwChart.timeScale().setVisibleRange({
+                    from: `${year}-01-01`,
+                    to: `${year}-12-31`,
+                });
+            }
+        } else {
+            lwChart.timeScale().fitContent();
+        }
+
         document.getElementById('statusBatch').classList.add('status-ok');
-
     } catch (err) {
         console.error('Failed to load daily data:', err);
     }
@@ -274,46 +348,62 @@ async function loadDailyData(year) {
 // VOLATILITY CHART
 // ============================================
 
-let volatilityChartInstance = null;
-
-async function loadVolatilityData() {
+async function loadVolatilityData(year, ticker = '1155.KL') {
     try {
-        const res = await fetch('/api/volatility');
+        const url = ticker ? `/api/volatility?ticker=${ticker}` : '/api/volatility';
+        const res = await fetch(url);
         const json = await res.json();
         if (json.status !== 'ok') throw new Error(json.message);
 
-        const ctx = document.getElementById('volatilityChart');
-        if (volatilityChartInstance) volatilityChartInstance.destroy();
+        const container = document.getElementById('volatilityChart');
 
-        volatilityChartInstance = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: json.data.map(d => d.date),
-                datasets: [
-                    {
-                        label: '7-Day Volatility',
-                        data: json.data.map(d => d.vol_7d),
-                        borderColor: '#00d4aa',
-                        backgroundColor: 'rgba(0, 212, 170, 0.1)',
-                        borderWidth: 1.5,
-                        fill: true,
-                        pointRadius: 0,
-                        tension: 0.3,
-                    },
-                    {
-                        label: '30-Day Volatility',
-                        data: json.data.map(d => d.vol_30d),
-                        borderColor: '#06b6d4',
-                        backgroundColor: 'rgba(6, 182, 212, 0.1)',
-                        borderWidth: 1.5,
-                        fill: true,
-                        pointRadius: 0,
-                        tension: 0.3,
-                    },
-                ],
-            },
-            options: chartOptions('Volatility'),
-        });
+        if (!volatilityChart) {
+            volatilityChart = LightweightCharts.createChart(container, {
+                width: container.clientWidth,
+                height: 300,
+                layout: {
+                    background: { type: 'solid', color: 'transparent' },
+                    textColor: '#94a3b8',
+                },
+                grid: {
+                    vertLines: { color: 'rgba(255, 255, 255, 0.05)' },
+                    horzLines: { color: 'rgba(255, 255, 255, 0.05)' },
+                },
+                timeScale: {
+                    borderColor: 'rgba(255, 255, 255, 0.1)',
+                    timeVisible: true,
+                },
+            });
+
+            vol7Series = volatilityChart.addLineSeries({ color: '#10b981', lineWidth: 2, title: '7-Day Vol' });
+            vol30Series = volatilityChart.addLineSeries({ color: '#06b6d4', lineWidth: 2, title: '30-Day Vol' });
+
+            // Sync logic
+            volatilityChart.timeScale().subscribeVisibleTimeRangeChange(range => {
+                if (lwChart && range) {
+                    lwChart.timeScale().setVisibleRange(range);
+                }
+            });
+
+            new ResizeObserver(entries => {
+                if (entries.length > 0) {
+                    volatilityChart.resize(entries[0].contentRect.width, 300);
+                }
+            }).observe(container);
+        }
+
+        const vol7Data = json.data.map(d => ({ time: d.date, value: d.vol_7d }));
+        const vol30Data = json.data.map(d => ({ time: d.date, value: d.vol_30d }));
+
+        vol7Series.setData(vol7Data);
+        vol30Series.setData(vol30Data);
+
+        if (year && year !== '') {
+            volatilityChart.timeScale().setVisibleRange({
+                from: `${year}-01-01`,
+                to: `${year}-12-31`,
+            });
+        }
     } catch (err) {
         console.error('Failed to load volatility:', err);
     }
@@ -325,9 +415,10 @@ async function loadVolatilityData() {
 
 let volumeChartInstance = null;
 
-async function loadMonthlyData() {
+async function loadMonthlyData(year) {
     try {
-        const res = await fetch('/api/monthly');
+        const url = year ? `/api/monthly?year=${year}` : '/api/monthly';
+        const res = await fetch(url);
         const json = await res.json();
         if (json.status !== 'ok') throw new Error(json.message);
 
@@ -473,16 +564,18 @@ function chartOptions(yLabel) {
 // ALERT FEED
 // ============================================
 
-async function loadAlerts() {
+async function loadAlerts(year, ticker = '1155.KL') {
     try {
-        const res = await fetch('/api/anomalies');
+        let url = `/api/anomalies?ticker=${ticker}`;
+        if (year) url += `&year=${year}`;
+        const res = await fetch(url);
         const json = await res.json();
         if (json.status !== 'ok') return;
 
         const feed = document.getElementById('alertFeed');
 
         if (!json.data || json.data.length === 0) {
-            feed.innerHTML = '<div class="alert-empty"><span>No anomalies detected</span></div>';
+            feed.innerHTML = '<div class="alert-empty"><span>No anomalies detected for ' + ticker + '</span></div>';
             return;
         }
 
@@ -538,6 +631,8 @@ function initWebSocket() {
             reconnectionAttempts: 10,
             reconnectionDelay: 3000,
         });
+        window.mmSocket = socket;
+        console.log('WebSocket initialized');
 
         const badge = document.getElementById('liveBadge');
         const dot = badge.querySelector('.live-dot');
@@ -546,7 +641,8 @@ function initWebSocket() {
         socket.on('connect', () => {
             dot.classList.add('connected');
             text.textContent = 'Live';
-            socket.emit('subscribe_prices', { ticker: '1155.KL' });
+            const ticker = document.getElementById('tickerSelector')?.value || '1155.KL';
+            socket.emit('subscribe_prices', { ticker: ticker });
             document.getElementById('statusStream').classList.add('status-ok');
         });
 
@@ -773,5 +869,37 @@ function initCommandPalette() {
                 loadDailyData(action.split(':')[1]);
             }
         });
+    });
+}
+
+let currentTicker = '1155.KL';
+
+function initTickerSelector() {
+    const selector = document.getElementById('tickerSelector');
+    if (!selector) return;
+
+    selector.addEventListener('change', () => {
+        const newTicker = selector.value;
+        const oldTicker = currentTicker;
+        currentTicker = newTicker;
+
+        // Update UI
+        const chartTitle = document.querySelector('#candlestickCard .chart-title');
+        if (chartTitle) {
+            chartTitle.textContent = selector.options[selector.selectedIndex].text + ' — Price';
+        }
+
+        // Resubscribe WebSocket
+        // We need to store the socket globally
+        if (window.mmSocket) {
+            window.mmSocket.emit('unsubscribe_prices', { ticker: oldTicker });
+            window.mmSocket.emit('subscribe_prices', { ticker: newTicker });
+        }
+
+        // Reload all charts for new ticker
+        const year = document.getElementById('yearFilter').value;
+        loadDailyData(year, newTicker);
+        loadVolatilityData(year, newTicker);
+        loadAlerts(year, newTicker);
     });
 }

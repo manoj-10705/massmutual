@@ -36,7 +36,7 @@ class AnomalyDetector:
         self.get_db = db_context_manager
 
     def detect_volume_spikes(
-        self, ticker: str = "1155.KL", z_threshold: float = 2.5
+        self, ticker: str = "1155.KL", z_threshold: float = 1.2
     ) -> list[AnomalyAlert]:
         """Detect volume spikes using Z-score against 30-day rolling average."""
         alerts = []
@@ -55,14 +55,12 @@ class AnomalyDetector:
                             JOIN dim_stock s ON f.stock_id = s.stock_id
                             WHERE s.ticker = %s
                             ORDER BY d.date DESC
-                            LIMIT 30
                         )
                         SELECT date, volume, avg_vol, std_vol,
                                CASE WHEN std_vol > 0 THEN (volume - avg_vol) / std_vol ELSE 0 END AS z_score
                         FROM stats
                         WHERE std_vol > 0
                         ORDER BY date DESC
-                        LIMIT 10
                     """, (ticker,))
                     rows = cur.fetchall()
 
@@ -78,7 +76,7 @@ class AnomalyDetector:
                                 message=f"Volume {direction} normal: {z:.1f}σ from 30-day average on {row['date']}",
                                 metric_value=float(row["volume"]),
                                 threshold=float(row["avg_vol"]),
-                                detected_at=datetime.now(),
+                                detected_at=row["date"],
                             ))
 
         except Exception as e:
@@ -87,7 +85,7 @@ class AnomalyDetector:
         return alerts
 
     def detect_price_anomalies(
-        self, ticker: str = "1155.KL", z_threshold: float = 2.0
+        self, ticker: str = "1155.KL", z_threshold: float = 1.2
     ) -> list[AnomalyAlert]:
         """Detect unusual daily returns using Z-score."""
         alerts = []
@@ -107,14 +105,12 @@ class AnomalyDetector:
                             JOIN dim_stock s ON f.stock_id = s.stock_id
                             WHERE s.ticker = %s AND f.daily_return IS NOT NULL
                             ORDER BY d.date DESC
-                            LIMIT 30
                         )
                         SELECT date, daily_return, close, avg_ret, std_ret,
                                CASE WHEN std_ret > 0 THEN (daily_return - avg_ret) / std_ret ELSE 0 END AS z_score
                         FROM stats
                         WHERE std_ret > 0
                         ORDER BY date DESC
-                        LIMIT 10
                     """, (ticker,))
                     rows = cur.fetchall()
 
@@ -131,7 +127,7 @@ class AnomalyDetector:
                                 message=f"Unusual {direction}: {pct:.2f}% daily return ({z:.1f}σ) on {row['date']}",
                                 metric_value=float(row["close"]) if row["close"] else 0,
                                 threshold=float(row["avg_ret"]) if row["avg_ret"] else 0,
-                                detected_at=datetime.now(),
+                                detected_at=row["date"],
                             ))
 
         except Exception as e:
@@ -145,3 +141,56 @@ class AnomalyDetector:
         alerts.extend(self.detect_volume_spikes(ticker))
         alerts.extend(self.detect_price_anomalies(ticker))
         return sorted(alerts, key=lambda a: a.detected_at, reverse=True)
+
+    def save_alerts_to_db(self, alerts: list[AnomalyAlert]) -> None:
+        """Save detected alerts to PostgreSQL."""
+        if not alerts:
+            return
+            
+        try:
+            with self.get_db() as conn:
+                with conn.cursor() as cur:
+                    # Truncate to keep the feed fresh and prevent duplicate buildup
+                    cur.execute("TRUNCATE TABLE anomaly_alerts;")
+                    
+                    for alert in alerts:
+                        cur.execute("""
+                            INSERT INTO anomaly_alerts (ticker, alert_type, severity, message, metric_value, threshold, detected_at)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        """, (
+                            alert.ticker, alert.alert_type, alert.severity, 
+                            alert.message, alert.metric_value, alert.threshold, alert.detected_at
+                        ))
+                    conn.commit()
+            logger.info(f"Saved {len(alerts)} anomalies to database.")
+        except Exception as e:
+            logger.error(f"Failed to save anomalies to DB: {e}")
+
+if __name__ == "__main__":
+    # Seed the DB when run directly
+    import psycopg2
+    from psycopg2.extras import DictCursor
+    import os
+    
+    def get_db():
+        return psycopg2.connect(
+            host=os.getenv("POSTGRES_HOST", "localhost"),
+            database=os.getenv("APP_DB_NAME", "massmutual"),
+            user=os.getenv("APP_DB_USER", "massmutual"),
+            password=os.getenv("APP_DB_PASSWORD", "massmutual123"),
+            port=os.getenv("POSTGRES_PORT", "5432"),
+            cursor_factory=DictCursor
+        )
+        
+    try:
+        logging.basicConfig(level=logging.INFO)
+        detector = AnomalyDetector(get_db)
+        logger.info("Running anomaly checks...")
+        detected = detector.run_all_checks("1155.KL")
+        print(f"DEBUG: Found {len(detected)} anomalies.")
+        if detected:
+            detector.save_alerts_to_db(detected)
+        else:
+            logger.info("No anomalies detected.")
+    except Exception as e:
+        print("FATAL ERROR:", e)
