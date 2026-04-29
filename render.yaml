@@ -12,7 +12,7 @@ services:
     runtime: python
     plan: free
     buildCommand: pip install -r requirements-render.txt
-    startCommand: gunicorn --bind 0.0.0.0:$PORT --worker-class eventlet -w 1 frontend.app:app
+    startCommand: cd frontend && gunicorn --bind 0.0.0.0:$PORT --worker-class eventlet -w 1 "app:create_app()"
     envVars:
       - key: POSTGRES_HOST
         fromDatabase:
