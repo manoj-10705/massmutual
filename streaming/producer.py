@@ -7,14 +7,13 @@ and publishes to Kafka topic 'market-data'.
 Architecture: Class-based with graceful shutdown support.
 """
 
-import os
-import sys
 import json
-import time
-import signal
 import logging
-from datetime import datetime, timezone
-from typing import Optional
+import os
+import signal
+import sys
+import time
+from datetime import UTC, datetime
 
 import websocket
 from kafka import KafkaProducer
@@ -30,7 +29,7 @@ logging.basicConfig(
 logger = logging.getLogger("MarketProducer")
 
 
-def require_env(name: str, default: Optional[str] = None) -> str:
+def require_env(name: str, default: str | None = None) -> str:
     """Get required environment variable or fail fast."""
     value = os.getenv(name, default)
     if value is None:
@@ -43,6 +42,7 @@ def require_env(name: str, default: Optional[str] = None) -> str:
 # Market Producer Class
 # ============================================
 
+
 class MarketProducer:
     """Publishes real-time market data from Finnhub to Kafka."""
 
@@ -51,11 +51,8 @@ class MarketProducer:
         self.kafka_topic = require_env("KAFKA_TOPIC", "market-data")
         self.tickers = require_env("TICKERS", "1155.KL").split(",")
         self.finnhub_key = os.getenv("FINNHUB_API_KEY", "")
-        self.use_simulation = (
-            not self.finnhub_key
-            or self.finnhub_key == "your_finnhub_api_key_here"
-        )
-        self._producer: Optional[KafkaProducer] = None
+        self.use_simulation = not self.finnhub_key or self.finnhub_key == "your_finnhub_api_key_here"
+        self._producer: KafkaProducer | None = None
         self._running = True
         self._message_count = 0
 
@@ -109,9 +106,7 @@ class MarketProducer:
                         "ticker": trade.get("s", "UNKNOWN"),
                         "price": trade.get("p", 0.0),
                         "volume": trade.get("v", 0),
-                        "timestamp": datetime.fromtimestamp(
-                            trade.get("t", 0) / 1000, tz=timezone.utc
-                        ).isoformat(),
+                        "timestamp": datetime.fromtimestamp(trade.get("t", 0) / 1000, tz=UTC).isoformat(),
                         "source": "finnhub",
                     }
                     self._publish(record)
@@ -169,14 +164,14 @@ class MarketProducer:
         while self._running:
             for ticker in self.tickers:
                 ticker = ticker.strip()
-                change = random.uniform(-0.05, 0.05)
+                change = random.uniform(-0.05, 0.05)  # noqa: S311
                 base_price = max(1.0, base_price + change)
 
                 record = {
                     "ticker": ticker,
                     "price": round(base_price, 4),
-                    "volume": random.randint(100, 10000),
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "volume": random.randint(100, 10000),  # noqa: S311
+                    "timestamp": datetime.now(UTC).isoformat(),
                     "source": "simulation",
                 }
                 self._publish(record)

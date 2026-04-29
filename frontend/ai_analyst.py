@@ -12,11 +12,11 @@ Safety:
   - All queries are logged to ai_query_log table
 """
 
+import logging
 import re
 import time
-import logging
-from typing import Any, Callable, Optional
-from contextlib import contextmanager
+from collections.abc import Callable
+from typing import Any
 
 logger = logging.getLogger("AIAnalyst")
 
@@ -72,11 +72,23 @@ def validate_sql(query: str) -> bool:
         return False
 
     # Block dangerous keywords
-    dangerous = ["INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "CREATE",
-                 "TRUNCATE", "EXEC", "EXECUTE", "GRANT", "REVOKE", "COPY"]
+    dangerous = [
+        "INSERT",
+        "UPDATE",
+        "DELETE",
+        "DROP",
+        "ALTER",
+        "CREATE",
+        "TRUNCATE",
+        "EXEC",
+        "EXECUTE",
+        "GRANT",
+        "REVOKE",
+        "COPY",
+    ]
     for keyword in dangerous:
         # Match as whole word to avoid false positives
-        if re.search(rf'\b{keyword}\b', normalized):
+        if re.search(rf"\b{keyword}\b", normalized):
             return False
 
     return True
@@ -96,6 +108,7 @@ class FinancialAnalyst:
 
         try:
             from google import genai
+
             self.client = genai.Client(api_key=api_key)
             self.model = "gemini-2.5-flash"
             logger.info("Gemini AI client initialized")
@@ -161,7 +174,7 @@ class FinancialAnalyst:
                 "latency_ms": latency,
             }
 
-    def _generate_sql(self, question: str) -> Optional[str]:
+    def _generate_sql(self, question: str) -> str | None:
         """Use Gemini to generate SQL from a natural language question."""
         prompt = f"""{SCHEMA_CONTEXT}
 
@@ -201,7 +214,7 @@ Rules:
             with conn.cursor() as cur:
                 cur.execute("SET statement_timeout = '10s'")
                 cur.execute(query)
-                columns = [desc[0] for desc in cur.description] if cur.description else []
+                _ = [desc[0] for desc in cur.description] if cur.description else []  # noqa: F841
                 rows = cur.fetchall()
 
         # Convert to serializable format
@@ -219,7 +232,7 @@ Rules:
 
         return result
 
-    def _generate_analysis(self, question: str, sql: str, data: list) -> tuple[str, Optional[dict]]:
+    def _generate_analysis(self, question: str, sql: str, data: list) -> tuple[str, dict | None]:
         """Use Gemini to generate human-readable analysis from query results."""
         if not data:
             return "No data found for your query.", None
@@ -277,7 +290,7 @@ CHART:
             logger.error(f"Analysis generation failed: {e}")
             return f"Query returned {len(data)} rows. Raw data is available below.", None
 
-    def _parse_chart_suggestion(self, text: str, data: list) -> Optional[dict]:
+    def _parse_chart_suggestion(self, text: str, data: list) -> dict | None:
         """Parse chart suggestion from LLM response."""
         try:
             chart_type = "bar"
@@ -296,6 +309,6 @@ CHART:
                     "x_label": keys[0],
                     "y_label": keys[1] if len(keys) > 1 else keys[0],
                 }
-        except Exception:
+        except Exception:  # noqa: S110
             pass
         return None

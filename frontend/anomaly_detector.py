@@ -10,7 +10,7 @@ Designed to run as a lightweight check on API request or background schedule.
 """
 
 import logging
-from typing import Any, Callable
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -20,6 +20,7 @@ logger = logging.getLogger("AnomalyDetector")
 @dataclass
 class AnomalyAlert:
     """Represents a detected anomaly."""
+
     ticker: str
     alert_type: str
     severity: str  # "critical", "warning", "info"
@@ -35,15 +36,14 @@ class AnomalyDetector:
     def __init__(self, db_context_manager: Callable):
         self.get_db = db_context_manager
 
-    def detect_volume_spikes(
-        self, ticker: str = "1155.KL", z_threshold: float = 1.2
-    ) -> list[AnomalyAlert]:
+    def detect_volume_spikes(self, ticker: str = "1155.KL", z_threshold: float = 1.2) -> list[AnomalyAlert]:
         """Detect volume spikes using Z-score against 30-day rolling average."""
         alerts = []
         try:
             with self.get_db() as conn:
                 with conn.cursor() as cur:
-                    cur.execute("""
+                    cur.execute(
+                        """
                         WITH stats AS (
                             SELECT
                                 d.date,
@@ -61,7 +61,9 @@ class AnomalyDetector:
                         FROM stats
                         WHERE std_vol > 0
                         ORDER BY date DESC
-                    """, (ticker,))
+                    """,
+                        (ticker,),
+                    )
                     rows = cur.fetchall()
 
                     for row in rows:
@@ -69,30 +71,31 @@ class AnomalyDetector:
                         if abs(z) >= z_threshold:
                             severity = "critical" if abs(z) >= 3.5 else "warning"
                             direction = "above" if z > 0 else "below"
-                            alerts.append(AnomalyAlert(
-                                ticker=ticker,
-                                alert_type="volume_spike",
-                                severity=severity,
-                                message=f"Volume {direction} normal: {z:.1f}σ from 30-day average on {row['date']}",
-                                metric_value=float(row["volume"]),
-                                threshold=float(row["avg_vol"]),
-                                detected_at=row["date"],
-                            ))
+                            alerts.append(
+                                AnomalyAlert(
+                                    ticker=ticker,
+                                    alert_type="volume_spike",
+                                    severity=severity,
+                                    message=f"Volume {direction} normal: {z:.1f}σ from 30-day average on {row['date']}",
+                                    metric_value=float(row["volume"]),
+                                    threshold=float(row["avg_vol"]),
+                                    detected_at=row["date"],
+                                )
+                            )
 
         except Exception as e:
             logger.error(f"Volume spike detection failed: {e}")
 
         return alerts
 
-    def detect_price_anomalies(
-        self, ticker: str = "1155.KL", z_threshold: float = 1.2
-    ) -> list[AnomalyAlert]:
+    def detect_price_anomalies(self, ticker: str = "1155.KL", z_threshold: float = 1.2) -> list[AnomalyAlert]:
         """Detect unusual daily returns using Z-score."""
         alerts = []
         try:
             with self.get_db() as conn:
                 with conn.cursor() as cur:
-                    cur.execute("""
+                    cur.execute(
+                        """
                         WITH stats AS (
                             SELECT
                                 d.date,
@@ -111,7 +114,9 @@ class AnomalyDetector:
                         FROM stats
                         WHERE std_ret > 0
                         ORDER BY date DESC
-                    """, (ticker,))
+                    """,
+                        (ticker,),
+                    )
                     rows = cur.fetchall()
 
                     for row in rows:
@@ -120,15 +125,17 @@ class AnomalyDetector:
                             severity = "critical" if abs(z) >= 3.0 else "warning"
                             direction = "gain" if z > 0 else "loss"
                             pct = float(row["daily_return"]) * 100 if row["daily_return"] else 0
-                            alerts.append(AnomalyAlert(
-                                ticker=ticker,
-                                alert_type="price_anomaly",
-                                severity=severity,
-                                message=f"Unusual {direction}: {pct:.2f}% daily return ({z:.1f}σ) on {row['date']}",
-                                metric_value=float(row["close"]) if row["close"] else 0,
-                                threshold=float(row["avg_ret"]) if row["avg_ret"] else 0,
-                                detected_at=row["date"],
-                            ))
+                            alerts.append(
+                                AnomalyAlert(
+                                    ticker=ticker,
+                                    alert_type="price_anomaly",
+                                    severity=severity,
+                                    message=f"Unusual {direction}: {pct:.2f}% daily return ({z:.1f}σ) on {row['date']}",
+                                    metric_value=float(row["close"]) if row["close"] else 0,
+                                    threshold=float(row["avg_ret"]) if row["avg_ret"] else 0,
+                                    detected_at=row["date"],
+                                )
+                            )
 
         except Exception as e:
             logger.error(f"Price anomaly detection failed: {e}")
@@ -146,32 +153,42 @@ class AnomalyDetector:
         """Save detected alerts to PostgreSQL."""
         if not alerts:
             return
-            
+
         try:
             with self.get_db() as conn:
                 with conn.cursor() as cur:
                     # Truncate to keep the feed fresh and prevent duplicate buildup
                     cur.execute("TRUNCATE TABLE anomaly_alerts;")
-                    
+
                     for alert in alerts:
-                        cur.execute("""
+                        cur.execute(
+                            """
                             INSERT INTO anomaly_alerts (ticker, alert_type, severity, message, metric_value, threshold, detected_at)
                             VALUES (%s, %s, %s, %s, %s, %s, %s)
-                        """, (
-                            alert.ticker, alert.alert_type, alert.severity, 
-                            alert.message, alert.metric_value, alert.threshold, alert.detected_at
-                        ))
+                        """,
+                            (
+                                alert.ticker,
+                                alert.alert_type,
+                                alert.severity,
+                                alert.message,
+                                alert.metric_value,
+                                alert.threshold,
+                                alert.detected_at,
+                            ),
+                        )
                     conn.commit()
             logger.info(f"Saved {len(alerts)} anomalies to database.")
         except Exception as e:
             logger.error(f"Failed to save anomalies to DB: {e}")
 
+
 if __name__ == "__main__":
     # Seed the DB when run directly
+    import os
+
     import psycopg2
     from psycopg2.extras import DictCursor
-    import os
-    
+
     def get_db():
         return psycopg2.connect(
             host=os.getenv("POSTGRES_HOST", "localhost"),
@@ -179,9 +196,9 @@ if __name__ == "__main__":
             user=os.getenv("APP_DB_USER", "massmutual"),
             password=os.getenv("APP_DB_PASSWORD", "massmutual123"),
             port=os.getenv("POSTGRES_PORT", "5432"),
-            cursor_factory=DictCursor
+            cursor_factory=DictCursor,
         )
-        
+
     try:
         logging.basicConfig(level=logging.INFO)
         detector = AnomalyDetector(get_db)

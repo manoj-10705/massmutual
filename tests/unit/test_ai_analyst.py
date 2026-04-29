@@ -85,28 +85,25 @@ class TestFinancialAnalyst:
         mock_response.text = "SELECT year, AVG(close) FROM fact_daily_prices GROUP BY year LIMIT 10"
         mock_client.models.generate_content.return_value = mock_response
 
-        with patch('ai_analyst.genai') as mock_genai:
-            mock_genai.Client.return_value = mock_client
+        mock_db = MagicMock()
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.description = [('year',), ('avg',)]
+        mock_cursor.fetchall.return_value = [{'year': 2024, 'avg': 9.5}]
+        mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+        mock_db.return_value.__enter__ = MagicMock(return_value=mock_conn)
+        mock_db.return_value.__exit__ = MagicMock(return_value=False)
 
-            mock_db = MagicMock()
-            mock_conn = MagicMock()
-            mock_cursor = MagicMock()
-            mock_cursor.description = [('year',), ('avg',)]
-            mock_cursor.fetchall.return_value = [{'year': 2024, 'avg': 9.5}]
-            mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
-            mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
-            mock_db.return_value.__enter__ = MagicMock(return_value=mock_conn)
-            mock_db.return_value.__exit__ = MagicMock(return_value=False)
+        analyst = FinancialAnalyst.__new__(FinancialAnalyst)
+        analyst.client = mock_client
+        analyst.model = "test-model"
+        analyst.get_db = mock_db
+        analyst.api_key = "test"
 
-            analyst = FinancialAnalyst.__new__(FinancialAnalyst)
-            analyst.client = mock_client
-            analyst.model = "test-model"
-            analyst.get_db = mock_db
-            analyst.api_key = "test"
+        result = analyst.query("What is the average close price?")
 
-            result = analyst.query("What is the average close price?")
-
-            assert 'analysis' in result
-            assert 'sql' in result
-            assert 'data' in result
-            assert 'latency_ms' in result
+        assert 'analysis' in result
+        assert 'sql' in result
+        assert 'data' in result
+        assert 'latency_ms' in result

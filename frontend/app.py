@@ -18,30 +18,28 @@ WebSocket Events:
   price_update          — Server pushes real-time prices
 """
 
-import os
-import sys
 import json
 import logging
+import os
+import sys
 import threading
-import time
-from typing import Any, Optional
 from contextlib import contextmanager
 from functools import wraps
 
-import psycopg2
-from psycopg2 import pool, sql
-from psycopg2.extras import RealDictCursor
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, jsonify, render_template, request
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_socketio import SocketIO, emit
+from psycopg2 import pool
+from psycopg2.extras import RealDictCursor
 
 # ============================================
 # Configuration
 # ============================================
 
-def require_env(name: str, default: Optional[str] = None) -> str:
+
+def require_env(name: str, default: str | None = None) -> str:
     """Get required environment variable or fail fast."""
     value = os.getenv(name, default)
     if value is None:
@@ -102,7 +100,7 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 # Connection Pool
 # ============================================
 
-db_pool: Optional[pool.ThreadedConnectionPool] = None
+db_pool: pool.ThreadedConnectionPool | None = None
 
 
 def init_db_pool() -> None:
@@ -143,6 +141,7 @@ def get_redis():
     """Get a Redis connection."""
     try:
         import redis
+
         return redis.Redis(
             host=REDIS_HOST,
             port=REDIS_PORT,
@@ -157,25 +156,34 @@ def get_redis():
 # Authentication (optional)
 # ============================================
 
+
 def require_api_key(f):
     """Decorator: require X-API-Key header if API_SECRET_KEY is set."""
+
     @wraps(f)
     def decorated(*args, **kwargs):
-        if API_SECRET_KEY and API_SECRET_KEY != "dev_secret_key_change_in_production":
+        if API_SECRET_KEY and API_SECRET_KEY != "dev_secret_key_change_in_production":  # noqa: S105
             provided = request.headers.get("X-API-Key", "")
             if provided != API_SECRET_KEY:
-                return jsonify({
-                    "status": "error",
-                    "code": "UNAUTHORIZED",
-                    "message": "Invalid or missing API key",
-                }), 401
+                return (
+                    jsonify(
+                        {
+                            "status": "error",
+                            "code": "UNAUTHORIZED",
+                            "message": "Invalid or missing API key",
+                        }
+                    ),
+                    401,
+                )
         return f(*args, **kwargs)
+
     return decorated
 
 
 # ============================================
 # Health Endpoints
 # ============================================
+
 
 @app.route("/health")
 def health():
@@ -222,6 +230,7 @@ def ready():
 # API Routes
 # ============================================
 
+
 @app.route("/api/kpis")
 @require_api_key
 @limiter.limit("100 per minute")
@@ -242,10 +251,12 @@ def api_kpis():
             metric = row["metric"]
             if metric not in result:
                 result[metric] = []
-            result[metric].append({
-                "year": row["year"],
-                "value": float(row["value"]) if row["value"] else None,
-            })
+            result[metric].append(
+                {
+                    "year": row["year"],
+                    "value": float(row["value"]) if row["value"] else None,
+                }
+            )
 
         return jsonify({"status": "ok", "data": result})
     except Exception as e:
@@ -274,22 +285,25 @@ def api_daily():
                 if year_filter:
                     query += " AND EXTRACT(YEAR FROM date) = %s"
                     params.append(int(year_filter))
-                
+
                 query += " ORDER BY date"
                 cur.execute(query, params)
                 rows = cur.fetchall()
 
-        data = [{
-            "date": row["date"].isoformat() if row["date"] else None,
-            "open": float(row["open"]) if row["open"] else None,
-            "high": float(row["high"]) if row["high"] else None,
-            "low": float(row["low"]) if row["low"] else None,
-            "close": float(row["close"]) if row["close"] else None,
-            "volume": int(row["volume"]) if row["volume"] else None,
-            "daily_return": float(row["daily_return"]) if row["daily_return"] else None,
-            "gdp": float(row["gdp"]) if row["gdp"] else None,
-            "inflation": float(row["inflation"]) if row["inflation"] else None,
-        } for row in rows]
+        data = [
+            {
+                "date": row["date"].isoformat() if row["date"] else None,
+                "open": float(row["open"]) if row["open"] else None,
+                "high": float(row["high"]) if row["high"] else None,
+                "low": float(row["low"]) if row["low"] else None,
+                "close": float(row["close"]) if row["close"] else None,
+                "volume": int(row["volume"]) if row["volume"] else None,
+                "daily_return": float(row["daily_return"]) if row["daily_return"] else None,
+                "gdp": float(row["gdp"]) if row["gdp"] else None,
+                "inflation": float(row["inflation"]) if row["inflation"] else None,
+            }
+            for row in rows
+        ]
 
         return jsonify({"status": "ok", "count": len(data), "data": data})
     except Exception as e:
@@ -323,11 +337,14 @@ def api_volatility():
                 cur.execute(query, params)
                 rows = cur.fetchall()
 
-        data = [{
-            "date": row["date"].isoformat(),
-            "vol_7d": float(row["rolling_7d_vol"]) if row["rolling_7d_vol"] else None,
-            "vol_30d": float(row["rolling_30d_vol"]) if row["rolling_30d_vol"] else None,
-        } for row in rows]
+        data = [
+            {
+                "date": row["date"].isoformat(),
+                "vol_7d": float(row["rolling_7d_vol"]) if row["rolling_7d_vol"] else None,
+                "vol_30d": float(row["rolling_30d_vol"]) if row["rolling_30d_vol"] else None,
+            }
+            for row in rows
+        ]
 
         return jsonify({"status": "ok", "count": len(data), "data": data})
     except Exception as e:
@@ -346,13 +363,16 @@ def api_monthly():
         with get_db() as conn:
             with conn.cursor() as cur:
                 if year_filter:
-                    cur.execute("""
+                    cur.execute(
+                        """
                         SELECT year, month, avg_close, avg_return,
                                total_volume, volatility
                         FROM fact_monthly_summary
                         WHERE year = %s
                         ORDER BY year, month
-                    """, (int(year_filter),))
+                    """,
+                        (int(year_filter),),
+                    )
                 else:
                     cur.execute("""
                         SELECT year, month, avg_close, avg_return,
@@ -362,14 +382,17 @@ def api_monthly():
                     """)
                 rows = cur.fetchall()
 
-        data = [{
-            "year": row["year"],
-            "month": row["month"],
-            "avg_close": float(row["avg_close"]) if row["avg_close"] else None,
-            "avg_return": float(row["avg_return"]) if row["avg_return"] else None,
-            "total_volume": int(row["total_volume"]) if row["total_volume"] else None,
-            "volatility": float(row["volatility"]) if row["volatility"] else None,
-        } for row in rows]
+        data = [
+            {
+                "year": row["year"],
+                "month": row["month"],
+                "avg_close": float(row["avg_close"]) if row["avg_close"] else None,
+                "avg_return": float(row["avg_return"]) if row["avg_return"] else None,
+                "total_volume": int(row["total_volume"]) if row["total_volume"] else None,
+                "volatility": float(row["volatility"]) if row["volatility"] else None,
+            }
+            for row in rows
+        ]
 
         return jsonify({"status": "ok", "count": len(data), "data": data})
     except Exception as e:
@@ -402,36 +425,53 @@ def api_realtime():
 # AI Analyst Endpoint
 # ============================================
 
+
 @app.route("/api/ai/query", methods=["POST"])
 @require_api_key
 @limiter.limit("20 per minute")
 def ai_query():
     """Natural language query → SQL → Analysis → Chart data."""
     if not GEMINI_API_KEY or GEMINI_API_KEY == "your_gemini_api_key_here":
-        return jsonify({
-            "status": "error",
-            "code": "AI_NOT_CONFIGURED",
-            "message": "Gemini API key not configured. Set GEMINI_API_KEY in .env",
-        }), 503
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "code": "AI_NOT_CONFIGURED",
+                    "message": "Gemini API key not configured. Set GEMINI_API_KEY in .env",
+                }
+            ),
+            503,
+        )
 
     body = request.get_json(silent=True)
     if not body or not body.get("question"):
-        return jsonify({
-            "status": "error",
-            "code": "BAD_REQUEST",
-            "message": "Request body must include 'question' field",
-        }), 400
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "code": "BAD_REQUEST",
+                    "message": "Request body must include 'question' field",
+                }
+            ),
+            400,
+        )
 
     question = body["question"].strip()
     if len(question) > 500:
-        return jsonify({
-            "status": "error",
-            "code": "BAD_REQUEST",
-            "message": "Question must be under 500 characters",
-        }), 400
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "code": "BAD_REQUEST",
+                    "message": "Question must be under 500 characters",
+                }
+            ),
+            400,
+        )
 
     try:
         from ai_analyst import FinancialAnalyst
+
         analyst = FinancialAnalyst(GEMINI_API_KEY, get_db)
         result = analyst.query(question)
 
@@ -445,7 +485,7 @@ def ai_query():
                         (question, result.get("sql", ""), result.get("analysis", ""), result.get("latency_ms", 0)),
                     )
                     conn.commit()
-        except Exception:
+        except Exception:  # noqa: S110
             pass  # Non-fatal: audit logging should never break the response
 
         return jsonify({"status": "ok", **result})
@@ -457,6 +497,7 @@ def ai_query():
 # ============================================
 # Anomaly Endpoint
 # ============================================
+
 
 @app.route("/api/anomalies")
 @require_api_key
@@ -482,15 +523,18 @@ def api_anomalies():
                 cur.execute(query, params)
                 rows = cur.fetchall()
 
-        data = [{
-            "ticker": row["ticker"],
-            "alert_type": row["alert_type"],
-            "severity": row["severity"],
-            "message": row["message"],
-            "metric_value": float(row["metric_value"]) if row["metric_value"] else None,
-            "threshold": float(row["threshold"]) if row["threshold"] else None,
-            "detected_at": row["detected_at"].isoformat() if row["detected_at"] else None,
-        } for row in rows]
+        data = [
+            {
+                "ticker": row["ticker"],
+                "alert_type": row["alert_type"],
+                "severity": row["severity"],
+                "message": row["message"],
+                "metric_value": float(row["metric_value"]) if row["metric_value"] else None,
+                "threshold": float(row["threshold"]) if row["threshold"] else None,
+                "detected_at": row["detected_at"].isoformat() if row["detected_at"] else None,
+            }
+            for row in rows
+        ]
 
         return jsonify({"status": "ok", "data": data})
     except Exception as e:
@@ -501,6 +545,7 @@ def api_anomalies():
 # ============================================
 # WebSocket Events
 # ============================================
+
 
 @socketio.on("subscribe_prices")
 def handle_subscribe(data: dict) -> None:
@@ -518,14 +563,12 @@ def price_publisher() -> None:
         logger.warning("Redis not available — price publisher disabled")
         return
 
-    last_prices: dict[str, str] = {}
-    
     # Use PubSub for instantaneous updates instead of polling
     pubsub = r.pubsub()
     pubsub.subscribe("price_updates")
-    
+
     logger.info("Price publisher started (Redis PubSub mode)")
-    
+
     for message in pubsub.listen():
         try:
             if message["type"] == "message":
@@ -542,6 +585,7 @@ def price_publisher() -> None:
 # Dashboard Route
 # ============================================
 
+
 @app.route("/")
 def index():
     """Serve the main dashboard page."""
@@ -551,6 +595,7 @@ def index():
 # ============================================
 # Error Handlers
 # ============================================
+
 
 @app.errorhandler(404)
 def not_found(e):
@@ -571,6 +616,7 @@ def internal_error(e):
 # App Initialization
 # ============================================
 
+
 def create_app() -> Flask:
     """Application factory for testing and production."""
     init_db_pool()
@@ -588,4 +634,4 @@ def create_app() -> Flask:
 
 if __name__ == "__main__":
     create_app()
-    socketio.run(app, host="0.0.0.0", port=5000, debug=False, allow_unsafe_werkzeug=True)
+    socketio.run(app, host="0.0.0.0", port=5000, debug=False, allow_unsafe_werkzeug=True)  # noqa: S104
